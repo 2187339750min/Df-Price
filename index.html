@@ -1502,26 +1502,37 @@ function testConn(){
   var out=$('#testOut');
   out.innerHTML='<div class="status">正在测试…</div>';
   var lines=[];
+  var authOk=false;
   function one(label,useProxy){
     var oldUse=cfg.useProxy, oldProxy=cfg.proxy;
     cfg.useProxy=useProxy;
     var t0=Date.now();
-    return apiGet('/df/object/search',{name:'金条'}).then(function(b){
+    /* 新版后端要 objectName，旧版要 name，两个都发 */
+    return apiGet('/df/object/search',{objectName:'金条', name:'金条'}).then(function(b){
       var d=unwrap(b);
-      var n=(d&&(d.keywords||d.list||d.items))? (d.keywords||d.list||d.items).length : (Array.isArray(d)?d.length:0);
-      lines.push('✅ '+label+'：正常（'+n+' 条结果，'+(Date.now()-t0)+' ms）');
+      var arr=pickArr(d,['list','keywords','items']);
+      authOk=true;
+      lines.push('✅ '+label+'：正常（'+arr.length+' 条结果，'+(Date.now()-t0)+' ms）');
     }).catch(function(e){
-      lines.push('❌ '+label+'：'+errText(e));
+      /* 400「请提供 objectName 或 objectID 参数」说明凭证已经通过了，只是参数不对 */
+      var msg=(e&&e.message)||'';
+      if(e && e.status===400 && /objectName|objectID|参数/i.test(msg)){
+        authOk=true;
+        lines.push('✅ '+label+'：API Key 有效（认证已通过）');
+      }else{
+        lines.push('❌ '+label+'：'+errText(e));
+      }
     }).then(function(){ cfg.useProxy=oldUse; cfg.proxy=oldProxy; });
   }
   var p=Promise.resolve();
   p=p.then(function(){ return one('直连 '+cfg.base,false); });
   if(cfg.proxy && cfg.proxy.trim()) p=p.then(function(){ return one('代理 '+cfg.proxy,true); });
-  else lines.push('ℹ️ 未填写代理地址，跳过代理测试');
+  else lines.push('ℹ️ 未填写代理地址，跳过代理测试（不需要代理可以忽略这条）');
   p.then(function(){
-    var ok=lines.join('\n').indexOf('✅')>=0;
-    out.innerHTML='<div class="status '+(ok?'ok':'bad')+'">'+esc(lines.join('\n'))+'</div>'+
-      (ok?'':'<div class="hint">若提示 CORS/网络失败：说明浏览器不允许直接访问该接口。<br>请按 README 部署 worker.js，把地址填到上面的「代理」并打开开关。</div>');
+    out.innerHTML='<div class="status '+(authOk?'ok':'bad')+'">'+esc(lines.join('\n'))+'</div>'+
+      (authOk
+        ? '<div class="hint">认证通过，可以正常用了。去「搜索」加几个物品试试。</div>'
+        : '<div class="hint">排查顺序：<br>1. Key 是否复制完整（前后别带空格）<br>2. 数据源地址换成另一个试试<br>3. 手机网络是否正常</div>');
   });
 }
 
