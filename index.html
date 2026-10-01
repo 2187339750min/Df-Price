@@ -1,0 +1,1654 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0b0f14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="物价雷达">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>三角洲 · 物价雷达</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#131a22; --panel2:#182231; --line:#22303f;
+    --fg:#e6edf3; --dim:#8b9aa8; --dim2:#5f7183;
+    --up:#ff5c5c; --down:#3ddc84; --acc:#ff8a3d; --acc2:#3d9bff;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-t: env(safe-area-inset-top, 0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%}
+  body{
+    background:var(--bg); color:var(--fg);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    overscroll-behavior-y:contain;
+  }
+  button,input,select{font-family:inherit;font-size:15px;color:var(--fg)}
+  button{cursor:pointer;border:none;background:none}
+  a{color:var(--acc2)}
+
+  /* ---------- layout ---------- */
+  header{
+    position:sticky;top:0;z-index:20;
+    padding:calc(var(--safe-t) + 10px) 14px 10px;
+    background:linear-gradient(180deg,rgba(11,15,20,.98),rgba(11,15,20,.86));
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:10px;
+  }
+  header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.5px;flex:1;display:flex;align-items:center;gap:8px}
+  header h1 .logo{width:9px;height:9px;border-radius:50%;background:var(--acc);box-shadow:0 0 10px var(--acc)}
+  .hbtn{
+    padding:7px 12px;border-radius:9px;background:var(--panel2);border:1px solid var(--line);
+    font-size:13px;color:var(--fg);white-space:nowrap;
+  }
+  .hbtn:active{transform:scale(.96)}
+  .hbtn.spin svg{animation:rot 1s linear infinite}
+  @keyframes rot{to{transform:rotate(360deg)}}
+
+  main{padding:12px 12px calc(84px + var(--safe-b))}
+  .view{display:none}
+  .view.on{display:block}
+
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:12px;margin-bottom:10px;
+  }
+  .row{display:flex;align-items:center;gap:10px}
+  .grow{flex:1;min-width:0}
+  .ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dim{color:var(--dim)}
+  .dim2{color:var(--dim2)}
+  .small{font-size:12px}
+  .mono{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+  /* ---------- watch list ---------- */
+  .wcard{display:flex;gap:10px;align-items:center;padding:12px;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;margin-bottom:9px}
+  .wcard:active{background:var(--panel2)}
+  .wname{font-weight:600;font-size:14.5px}
+  .wprice{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+  .chg{font-size:12.5px;font-weight:600;padding:2px 7px;border-radius:7px;background:rgba(255,255,255,.05)}
+  .chg.up{color:var(--up)} .chg.down{color:var(--down)}
+  .spark{width:78px;height:34px;flex:none;opacity:.95}
+  .badge{font-size:10.5px;padding:2px 6px;border-radius:6px;background:rgba(255,138,61,.15);color:var(--acc);border:1px solid rgba(255,138,61,.3)}
+  .badge.hit{background:rgba(255,92,92,.18);color:var(--up);border-color:rgba(255,92,92,.45)}
+
+  .empty{text-align:center;padding:44px 20px;color:var(--dim)}
+  .empty .big{font-size:34px;margin-bottom:10px;opacity:.5}
+
+  /* ---------- search ---------- */
+  .field{width:100%;padding:12px 13px;border-radius:12px;background:var(--panel2);
+    border:1px solid var(--line);outline:none}
+  .field:focus{border-color:var(--acc)}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+  .chip{padding:7px 11px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:13px;color:var(--dim)}
+  .chip:active{background:var(--acc);color:#000;border-color:var(--acc)}
+  .chip.on{background:var(--acc);color:#160c02;border-color:var(--acc);font-weight:600}
+  #caliberChips{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+  #caliberChips::-webkit-scrollbar{display:none}
+  #caliberChips .chip{flex:none}
+
+  /* ---------- 子弹利润排行 ---------- */
+  .pcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px}
+  .prank{width:25px;height:25px;flex:none;border-radius:8px;background:var(--panel2);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--dim)}
+  .prank.top{background:var(--acc);color:#160c02;border-color:var(--acc)}
+  .pname{font-weight:600;font-size:14.5px}
+  .pbig{font-size:19px;font-weight:800;color:var(--acc);line-height:1.2}
+  .pfoot{display:flex;align-items:center;gap:10px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line);
+    font-size:12px;color:var(--dim);flex-wrap:wrap}
+  .pad{margin-left:auto;padding:6px 11px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);
+    font-size:12px;color:var(--fg);white-space:nowrap}
+  .pad:active{transform:scale(.96)}
+  .pad.on{color:var(--dim2)}
+  .rlist{margin-top:12px}
+  .ritem{display:flex;align-items:center;gap:10px;padding:12px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+  .ritem:active{background:var(--panel2)}
+  .addbtn{padding:7px 13px;border-radius:9px;background:var(--acc);color:#160c02;font-weight:700;font-size:13px;flex:none}
+  .addbtn.on{background:var(--panel2);color:var(--dim);border:1px solid var(--line)}
+
+  /* ---------- settings ---------- */
+  .lbl{font-size:12.5px;color:var(--dim);margin:14px 0 6px;letter-spacing:.3px}
+  .lbl:first-child{margin-top:0}
+  .hint{font-size:11.5px;color:var(--dim2);margin-top:6px;line-height:1.5}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .btn{padding:11px 15px;border-radius:11px;background:var(--panel2);border:1px solid var(--line);font-size:14px}
+  .btn:active{transform:scale(.97)}
+  .btn.pri{background:var(--acc);color:#160c02;border-color:var(--acc);font-weight:700}
+  .btn.danger{color:var(--up);border-color:rgba(255,92,92,.35)}
+  .status{padding:10px 12px;border-radius:11px;font-size:13px;margin-top:10px;line-height:1.6;white-space:pre-wrap}
+  .status.ok{background:rgba(61,220,132,.1);border:1px solid rgba(61,220,132,.3)}
+  .status.bad{background:rgba(255,92,92,.1);border:1px solid rgba(255,92,92,.3)}
+  .switch{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}
+  .switch:last-child{border-bottom:none}
+  .tgl{width:48px;height:28px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);position:relative;flex:none;transition:.18s}
+  .tgl::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:var(--dim);transition:.18s}
+  .tgl.on{background:rgba(255,138,61,.25);border-color:var(--acc)}
+  .tgl.on::after{left:22px;background:var(--acc)}
+
+  /* ---------- tabbar ---------- */
+  nav{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;
+    padding-bottom:var(--safe-b);
+    background:rgba(15,20,27,.96);backdrop-filter:blur(14px);
+    border-top:1px solid var(--line);display:flex;
+  }
+  nav button{flex:1;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;
+    font-size:10.5px;color:var(--dim2)}
+  nav button.on{color:var(--acc)}
+  nav svg{width:21px;height:21px}
+
+  /* ---------- detail sheet ---------- */
+  .sheet{position:fixed;inset:0;z-index:50;background:var(--bg);transform:translateY(100%);
+    transition:transform .26s cubic-bezier(.22,.9,.3,1);overflow-y:auto;
+    padding-bottom:calc(30px + var(--safe-b));-webkit-overflow-scrolling:touch}
+  .sheet.on{transform:translateY(0)}
+  .sheet .shead{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;
+    padding:calc(var(--safe-t) + 10px) 14px 10px;background:rgba(11,15,20,.97);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line)}
+  .sheet .sbody{padding:14px}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:10px}
+  .stat .k{font-size:11px;color:var(--dim)}
+  .stat .v{font-size:16px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+  .chartwrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 6px 4px;margin-top:12px}
+  .chart{width:100%;height:170px;display:block}
+  .legend{display:flex;justify-content:space-between;font-size:11px;color:var(--dim2);padding:2px 10px 6px}
+  .hlist{margin-top:12px}
+  .hrow{display:flex;justify-content:space-between;padding:7px 2px;border-bottom:1px dashed var(--line);font-size:12.5px}
+  .hrow:last-child{border-bottom:none}
+  .alertbox{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .alertbox input{flex:1;padding:10px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);outline:none}
+  pre.raw{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;
+    font-size:11px;overflow:auto;max-height:260px;color:var(--dim);white-space:pre-wrap;word-break:break-all}
+
+  #toast{position:fixed;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%) translateY(20px);
+    background:#eef4fa;color:#0b0f14;padding:11px 18px;border-radius:12px;font-size:13.5px;font-weight:600;
+    opacity:0;pointer-events:none;transition:.22s;z-index:99;max-width:88vw;text-align:center}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .skeleton{height:66px;border-radius:14px;background:linear-gradient(90deg,var(--panel),var(--panel2),var(--panel));
+    background-size:200% 100%;animation:sk 1.3s ease-in-out infinite;margin-bottom:9px}
+  @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="logo"></span>物价雷达</h1>
+  <span id="netdot" class="small dim2" style="margin-right:2px">●</span>
+  <button class="hbtn" id="btnRefresh">刷新</button>
+</header>
+
+<main>
+  <!-- ============ 行情 ============ -->
+  <section class="view on" id="view-watch">
+    <div class="row" style="margin:2px 2px 12px">
+      <div class="grow">
+        <div class="small dim" id="watchMeta">尚未配置数据源</div>
+      </div>
+      <button class="hbtn" id="btnSort">排序：默认</button>
+    </div>
+    <div id="watchList"></div>
+  </section>
+
+  <!-- ============ 搜索 ============ -->
+  <section class="view" id="view-search">
+    <input class="field" id="q" placeholder="输入物品名称，例如：金条 / 燃料电池" autocomplete="off" enterkeyhint="search">
+    <div class="chips" id="quickChips"></div>
+    <div class="rlist" id="searchList"></div>
+  </section>
+
+  <!-- ============ 子弹利润排行 ============ -->
+  <section class="view" id="view-profit">
+    <div class="row" style="margin:2px 2px 10px">
+      <div class="grow small dim" id="profitMeta">尚未加载</div>
+      <button class="hbtn" id="btnProfitSort">时均利润</button>
+      <button class="hbtn" id="btnProfitRefresh">刷新</button>
+    </div>
+    <div class="hint" style="margin:0 2px 10px">特勤处制造子弹的利润排行。利润 = 今日最高售价 − 最低材料成本，时均 = 利润 ÷ 制造小时数。<b>点卡片看该子弹的利润历史曲线。</b></div>
+    <div id="caliberChips" class="chips" style="margin-bottom:10px"></div>
+    <div id="profitList"></div>
+  </section>
+
+  <!-- ============ 设置 ============ -->
+  <section class="view" id="view-settings">
+    <div class="card">
+      <div class="lbl">API Key（必填）</div>
+      <input class="field" id="cfgKey" type="password" placeholder="sk-... 或你的 API Key" autocomplete="off">
+      <div class="hint">
+        在 <b>delta-test.shallow.ink</b> 注册 → 进入 <b>API Key 申请页面</b> → 创建一枚 Key 粘贴到这里。<br>
+        Key 只保存在本机浏览器（localStorage），不会上传到任何地方。
+      </div>
+
+      <div class="lbl">数据源地址</div>
+      <select class="field" id="cfgBase">
+        <option value="https://delta-test-api.shallow.ink/api/v1">新版接口 /api/v1（推荐 · X-API-Key）</option>
+        <option value="https://df-api.shallow.ink">旧版插件接口（Bearer）</option>
+        <option value="https://df-api-eo.shallow.ink">旧版备用 1</option>
+        <option value="https://df-api-esa.shallow.ink">旧版备用 2</option>
+        <option value="__custom__">自定义…</option>
+      </select>
+      <input class="field" id="cfgBaseCustom" placeholder="https://你的接口地址" style="margin-top:8px;display:none" autocomplete="off">
+      <div class="hint">默认用「新版接口」（就是你在 <b>delta-test.shallow.ink</b> 注册的那个站对应的后端）。<br>
+        如果你拿的是老插件那种 Key，就换成「旧版插件接口」。自检不过时挨个试。</div>
+
+      <div class="switch" style="margin-top:12px">
+        <div><div>通过代理访问</div><div class="small dim2">直连被 CORS 拦截时打开</div></div>
+        <div class="tgl" id="tglProxy"></div>
+      </div>
+      <input class="field" id="cfgProxy" placeholder="https://xxx.workers.dev" style="margin-top:10px">
+      <div class="hint">填你自己部署的 Cloudflare Worker 地址（见 README 的 worker.js）。开启后请求会走它转发。</div>
+    </div>
+
+    <div class="card">
+      <div class="switch">
+        <div><div>自动刷新</div><div class="small dim2">页面打开时每隔一段时间拉取行情</div></div>
+        <div class="tgl on" id="tglAuto"></div>
+      </div>
+      <div class="switch">
+        <div><div>刷新间隔</div></div>
+        <select class="field" id="cfgInterval" style="width:118px;flex:none">
+          <option value="1">1 分钟</option>
+          <option value="3">3 分钟</option>
+          <option value="5">5 分钟</option>
+          <option value="10">10 分钟</option>
+          <option value="30">30 分钟</option>
+        </select>
+      </div>
+      <div class="switch">
+        <div><div>价格提醒</div><div class="small dim2">自选价格触及阈值时弹通知 + 震动</div></div>
+        <div class="tgl" id="tglNotify"></div>
+      </div>
+      <div class="switch">
+        <div><div>涨红跌绿</div><div class="small dim2">关闭后为涨绿跌红</div></div>
+        <div class="tgl on" id="tglColor"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="btnrow" style="margin-top:0">
+        <button class="btn pri" id="btnSave">保存设置</button>
+        <button class="btn" id="btnTest">连通性自检</button>
+      </div>
+      <div id="testOut"></div>
+    </div>
+
+    <div class="card">
+      <div class="lbl" style="margin-top:0">自选数据</div>
+      <div class="btnrow" style="margin-top:8px">
+        <button class="btn" id="btnExport">导出</button>
+        <button class="btn" id="btnImport">导入</button>
+        <button class="btn danger" id="btnClear">清空自选</button>
+      </div>
+      <div class="hint" id="storeInfo"></div>
+    </div>
+
+    <div class="card">
+      <div class="lbl" style="margin-top:0">关于</div>
+      <div class="hint" style="margin-top:4px">
+        本工具是纯前端页面，直接调用第三方三角洲数据接口，不经过任何中间服务器（除非你开启代理）。<br>
+        数据来自社区整理的游戏内交易行快照，<b>与官方数据可能有差异，交易请以游戏内为准</b>。<br>
+        版本 v1.0
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button class="on" data-tab="watch">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 5-8 4 4"/><path d="M3 21h18"/></svg>
+    行情
+  </button>
+  <button data-tab="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    搜索
+  </button>
+  <button data-tab="profit">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    利润
+  </button>
+  <button data-tab="settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-2.9 1.2V21a2 2 0 11-4 0v-.1A1.7 1.7 0 007 19.4a1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.7 1.7 0 003 15a1.7 1.7 0 00-1.6-1H1a2 2 0 110-4h.1A1.7 1.7 0 003 9.4a1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1A1.7 1.7 0 009 4.6a1.7 1.7 0 001-1.6V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.6 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+    设置
+  </button>
+</nav>
+
+<!-- ============ 详情 ============ -->
+<div class="sheet" id="sheet">
+  <div class="shead">
+    <button class="hbtn" id="btnBack">‹ 返回</button>
+    <div class="grow ellip" id="dTitle" style="font-weight:700">物品详情</div>
+    <button class="hbtn" id="btnDRefresh">刷新</button>
+  </div>
+  <div class="sbody" id="dBody"></div>
+</div>
+
+<!-- ============ 利润详情 ============ -->
+<div class="sheet" id="psheet">
+  <div class="shead">
+    <button class="hbtn" id="btnPBack">‹ 返回</button>
+    <div class="grow ellip" id="pTitle" style="font-weight:700">利润详情</div>
+    <button class="hbtn" id="btnPRefresh">刷新</button>
+  </div>
+  <div class="sbody" id="pBody"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================
+   常量 / 存储
+   ========================================================= */
+var K_CFG='dfr.cfg.v3', K_WATCH='dfr.watch.v3', K_HIST='dfr.hist.v3', K_AMMO='dfr.ammo.v3';
+
+var DEFAULT_CFG={
+  base:'https://delta-test-api.shallow.ink/api/v1',
+  key:'',
+  proxy:'',
+  useProxy:false,
+  auto:true,
+  interval:5,
+  notify:false,
+  colorUpRed:true
+};
+
+/* 已知数据源（两套后端接口不同，下面所有请求都做了双路兼容） */
+var KNOWN_BASES=[
+  'https://delta-test-api.shallow.ink/api/v1',
+  'https://df-api.shallow.ink',
+  'https://df-api-eo.shallow.ink',
+  'https://df-api-esa.shallow.ink'
+];
+
+/* 快捷搜索：常见关注物品（只是快捷入口，点一下即搜索） */
+var QUICK=['金条','燃料电池','电子元件','量子存储','显卡','咖啡','军用电池','手术包','高级头盔','防弹衣'];
+
+var cfg=load(K_CFG, DEFAULT_CFG);
+for(var k in DEFAULT_CFG){ if(!(k in cfg)) cfg[k]=DEFAULT_CFG[k]; }
+var watch=load(K_WATCH, []);      /* [{id,name,upper,lower,addedAt}] */
+var histCache=load(K_HIST, {});   /* {id:{points:[{t,p}],stats:{},fetchedAt,price,ts}} */
+if(!Array.isArray(watch)) watch=[];
+if(typeof histCache!=='object'||!histCache) histCache={};
+
+var alertLog={};                  /* id -> 上次提醒时间，防刷屏 */
+var sortMode=0;                   /* 0 默认 1 涨幅 2 跌幅 3 价格 */
+var SORT_LABEL=['默认','涨幅↓','跌幅↓','价格↓'];
+var timer=null, busy=false;
+
+/* 子弹利润排行状态 */
+var ammoInfo=load(K_AMMO, {fetchedAt:0, ids:{}, meta:{}});   /* 弹药字典，24 小时更新一次 */
+if(!ammoInfo||typeof ammoInfo!=='object'||!ammoInfo.ids) ammoInfo={fetchedAt:0,ids:{},meta:{}};
+var profitItems=[], profitErr='', profitBusy=false, profitLoaded=false, profitAt=0;
+var profitSort=0;                 /* 0 时均利润 1 总利润 2 日环比 */
+var PROFIT_SORT=['时均利润','总利润','日环比'];
+var profitFilter='';              /* 口径筛选 */
+var profitHist={};                /* id -> {item|err, fetchedAt, loading} 利润历史缓存 */
+var curProfitId=null;             /* 当前打开的利润详情 */
+var profitMetric='hour';          /* hour 时均利润 | total 总利润 */
+
+/* =========================================================
+   小工具
+   ========================================================= */
+function $(s,r){return (r||document).querySelector(s);}
+function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
+function load(k,def){
+  try{ var v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch(e){ return def; }
+}
+function save(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function fmt(n){
+  var v=Number(n);
+  if(!isFinite(v)) return '--';
+  return Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',');
+}
+function toMs(ts){
+  if(ts==null||ts==='') return 0;
+  var n=Number(ts);
+  if(isFinite(n)&&n>0) return n<1e12 ? n*1000 : n;
+  var d=Date.parse(ts); return isFinite(d)?d:0;
+}
+function fmtTime(ms){
+  if(!ms) return '--';
+  var d=new Date(ms), p=function(x){return x<10?'0'+x:''+x;};
+  return (d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+function ago(ms){
+  if(!ms) return '未知';
+  var s=Math.floor((Date.now()-ms)/1000);
+  if(s<0) s=0;
+  if(s<60) return s+' 秒前';
+  if(s<3600) return Math.floor(s/60)+' 分钟前';
+  if(s<86400) return Math.floor(s/3600)+' 小时前';
+  return Math.floor(s/86400)+' 天前';
+}
+function toast(msg,ms){
+  var t=$('#toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t=setTimeout(function(){ t.classList.remove('on'); }, ms||1900);
+}
+/* 返回字面色值而不是 var(--x)：SVG 的 stroke / stop-color 属性在部分浏览器里不解析 CSS 变量 */
+function colorOf(chg){
+  var up=cfg.colorUpRed;
+  if(chg>0) return up?'#ff5c5c':'#3ddc84';
+  if(chg<0) return up?'#3ddc84':'#ff5c5c';
+  return '#8b9aa8';
+}
+function classOf(chg){
+  if(chg>0) return cfg.colorUpRed?'up':'down';
+  if(chg<0) return cfg.colorUpRed?'down':'up';
+  return '';
+}
+
+/* =========================================================
+   API 层
+   ========================================================= */
+function apiBase(){
+  if(cfg.useProxy && cfg.proxy && cfg.proxy.trim()) return cfg.proxy.trim().replace(/\/+$/,'');
+  return (cfg.base||DEFAULT_CFG.base).replace(/\/+$/,'');
+}
+function buildUrl(path, params){
+  var u=new URL(apiBase()+path);
+  if(params){
+    for(var k in params){
+      var v=params[k];
+      if(v===undefined||v===null||v==='') continue;
+      u.searchParams.set(k, Array.isArray(v) ? JSON.stringify(v.map(String)) : String(v));
+    }
+  }
+  return u.toString();
+}
+function apiGet(path, params){
+  var url=buildUrl(path,params);
+  var headers={};
+  var k=cfg.key && cfg.key.trim();
+  if(k){
+    /* 新版后端要 X-API-Key，旧版插件后端要 Authorization: Bearer，两个都发，互不干扰 */
+    headers['X-API-Key']=k;
+    headers['Authorization']='Bearer '+k;
+  }
+  return fetch(url,{headers:headers,cache:'no-store'}).then(function(r){
+    return r.text().then(function(txt){
+      var body=null;
+      try{ body=JSON.parse(txt); }catch(e){ body=null; }
+      if(!r.ok){
+        var e1=new Error((body&&(body.message||body.msg))||('HTTP '+r.status));
+        e1.status=r.status; e1.url=url; throw e1;
+      }
+      if(body && typeof body==='object' && ('code' in body)){
+        var c=String(body.code);
+        if(c!=='0'&&c!=='200'&&body.success!==true){
+          var e2=new Error(body.message||body.msg||('错误码 '+c));
+          e2.status=-1; e2.url=url; e2.body=body; throw e2;
+        }
+      }
+      return body;
+    });
+  }, function(err){
+    var e=new Error('NETWORK');
+    e.network=true; e.url=url; e.cause=err; throw e;
+  });
+}
+/* 依次尝试多个路径，只有 404（路径不存在）才继续往下试 */
+function apiGetAny(paths, params){
+  var i=0;
+  function attempt(){
+    if(i>=paths.length) return Promise.reject(new Error('接口路径都不可用'));
+    var p=paths[i++];
+    return apiGet(p, params).catch(function(e){
+      if(e && e.status===404) return attempt();
+      throw e;
+    });
+  }
+  return attempt();
+}
+function unwrap(body){
+  if(body&&typeof body==='object'&&!Array.isArray(body)&&('data' in body)) return body.data;
+  return body;
+}
+function pickId(x){ return String(x.objectID!=null?x.objectID:(x.objectId!=null?x.objectId:(x.id!=null?x.id:''))); }
+function pickName(x){
+  /* 文档说明：gameName 是游戏内实际显示名，objectName 是官方名，可能不一致 */
+  return String(x.gameName||x.objectName||x.name||x.title||('物品 '+pickId(x)));
+}
+function pickPrice(x){
+  var v=x.avgPrice!=null?x.avgPrice:(x.price!=null?x.price:(x.latestPrice!=null?x.latestPrice:x.lastPrice));
+  var n=Number(v); return isFinite(n)?n:NaN;
+}
+function errText(e){
+  if(!e) return '未知错误';
+  if(e.network) return '网络请求失败（可能是直连被浏览器 CORS 拦截，或接口地址不可用）';
+  if(e.status===401) return '鉴权失败（401）：API Key 不对或已失效';
+  if(e.status===403) return '无权限（403）：这枚 Key 没有对应接口权限';
+  if(e.status===429) return '请求过于频繁（429），稍后再试';
+  return e.message||'请求失败';
+}
+
+/* ---- 业务接口（两套后端双路兼容） ---- */
+function pickArr(d, keys){
+  if(Array.isArray(d)) return d;
+  if(!d||typeof d!=='object') return [];
+  for(var i=0;i<keys.length;i++){ if(Array.isArray(d[keys[i]])) return d[keys[i]]; }
+  return [];
+}
+function parsePriceList(b){
+  var d=unwrap(b);
+  var arr=pickArr(d,['list','prices','items','keywords']);
+  var out={};
+  arr.forEach(function(x){
+    var id=pickId(x), p=pickPrice(x);
+    if(!id||!isFinite(p)) return;
+    var ts = x.updatedAt!=null?x.updatedAt:(x.timestamp!=null?x.timestamp:(x.time!=null?x.time:x.updateTime));
+    out[id]={price:p, ts:toMs(ts), name:x.objectName||x.gameName||null};
+  });
+  return out;
+}
+function searchObject(kw){
+  /* 新版后端用 objectName，旧版用 name，两个都发 */
+  return apiGet('/df/object/search',{objectName:kw, name:kw}).then(function(b){
+    return pickArr(unwrap(b),['list','keywords','items'])
+      .map(function(x){ return {id:pickId(x),name:pickName(x)}; })
+      .filter(function(x){ return x.id; });
+  });
+}
+function fetchLatest(ids){
+  /* 新版后端：search?objectID= 直接带均价；旧版后端：search 不带价，需走 price/latest */
+  var fallback=function(){ return apiGet('/df/object/price/latest',{id:ids}).then(parsePriceList); };
+  return apiGet('/df/object/search',{objectID:ids.join(','), id:ids}).then(function(b){
+    var m=parsePriceList(b);
+    if(Object.keys(m).length) return m;
+    return fallback();
+  }).catch(function(e){
+    if(e&&(e.status===404||e.status===400)) return fallback();
+    throw e;
+  });
+}
+function fetchHistory(id){
+  return apiGetAny(['/df/object/price/ams/history/v2','/df/object/price/history/v2'],{objectId:id, days:8}).then(function(b){
+    var d=unwrap(b);
+    var arr=pickArr(d,['history','list']);
+    var pts=[];
+    for(var i=0;i<arr.length;i++){
+      var x=arr[i]||{};
+      var t=toMs(x.timestamp!=null?x.timestamp:x.time);
+      var p=firstNum(x.avgPrice, x.price);
+      if(t&&isFinite(p)) pts.push({t:t,p:p});
+    }
+    pts.sort(function(a,b){ return a.t-b.t; });
+    return {points:pts, stats:(d&&d.stats)||null};
+  });
+}
+
+/* =========================================================
+   计算
+   ========================================================= */
+function seriesOf(id){ var h=histCache[id]; return (h&&h.points)?h.points:[]; }
+function changeOf(id){
+  var pts=seriesOf(id);
+  if(pts.length<2) return null;
+  var last=pts[pts.length-1].p;
+  var target=Date.now()-24*3600*1000, ref=pts[0].p;
+  for(var i=pts.length-1;i>=0;i--){ if(pts[i].t<=target){ ref=pts[i].p; break; } }
+  if(!isFinite(ref)||ref<=0) return null;
+  return (last-ref)/ref*100;
+}
+function priceOf(id){
+  var h=histCache[id];
+  if(h&&isFinite(h.price)) return h.price;
+  var pts=seriesOf(id);
+  return pts.length?pts[pts.length-1].p:NaN;
+}
+function alertState(it){
+  var p=priceOf(it.id); if(!isFinite(p)) return '';
+  if(it.upper!=null && it.upper!=='' && p>=Number(it.upper)) return 'upper';
+  if(it.lower!=null && it.lower!=='' && p<=Number(it.lower)) return 'lower';
+  return '';
+}
+
+/* =========================================================
+   迷你走势图
+   ========================================================= */
+function sparkline(id,w,h){
+  var pts=seriesOf(id);
+  if(pts.length<2) return '<svg class="spark" viewBox="0 0 '+w+' '+h+'"></svg>';
+  var vs=pts.map(function(x){return x.p;});
+  var mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs);
+  var span=(mx-mn)||1, pad=3;
+  var step=(w-pad*2)/(vs.length-1);
+  var d='';
+  for(var i=0;i<vs.length;i++){
+    var x=pad+i*step, y=h-pad-((vs[i]-mn)/span)*(h-pad*2);
+    d+=(i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);
+  }
+  var chg=changeOf(id);
+  var col=colorOf(chg==null?0:chg);
+  return '<svg class="spark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none">'+
+    '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+}
+
+/* 通用折线图：价格曲线与利润曲线共用。pts = [{t,p}] */
+function renderLineChart(pts, opt){
+  opt=opt||{};
+  var W=680,H=340,PL=52,PR=14,PT=16,PB=34;
+  if(!pts||pts.length<2) return '<div class="dim small" style="padding:26px;text-align:center">'+esc(opt.empty||'暂无足够历史数据')+'</div>';
+  var vs=pts.map(function(x){return x.p;});
+  var mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs);
+  if(mx===mn){ mx=mn+1; }
+  var padTop=(mx-mn)*0.12;
+  var hi=mx+padTop, lo=Math.max(0,mn-padTop), span=(hi-lo)||1;
+  var iw=W-PL-PR, ih=H-PT-PB;
+  function X(i){ return PL+(iw*i/(pts.length-1)); }
+  function Y(v){ return PT+ih-((v-lo)/span)*ih; }
+  var line='';
+  for(var i=0;i<pts.length;i++){
+    line+=(i?'L':'M')+X(i).toFixed(1)+' '+Y(pts[i].p).toFixed(1);
+  }
+  var area=line+'L'+X(pts.length-1).toFixed(1)+' '+(PT+ih)+'L'+X(0).toFixed(1)+' '+(PT+ih)+'Z';
+  var col=opt.color||'#ff8a3d';
+  /* 每次渲染用新的 gradient id，避免同一页面出现重复 id */
+  var gid='lg'+((renderLineChart._seq=(renderLineChart._seq||0)+1));
+  var grid='';
+  for(var g=0;g<=4;g++){
+    var yy=PT+ih*(g/4);
+    var val=hi-(span*(g/4));
+    grid+='<line x1="'+PL+'" y1="'+yy.toFixed(1)+'" x2="'+(W-PR)+'" y2="'+yy.toFixed(1)+'" stroke="#22303f" stroke-width="1"/>';
+    grid+='<text x="'+(PL-7)+'" y="'+(yy+4).toFixed(1)+'" fill="#5f7183" font-size="17" text-anchor="end">'+fmt(val)+'</text>';
+  }
+  var maxI=vs.indexOf(mx), minI=vs.indexOf(mn);
+  var dots='<circle cx="'+X(maxI).toFixed(1)+'" cy="'+Y(vs[maxI]).toFixed(1)+'" r="5" fill="#ff8a3d"/>'+
+           '<circle cx="'+X(minI).toFixed(1)+'" cy="'+Y(vs[minI]).toFixed(1)+'" r="5" fill="#3d9bff"/>'+
+           '<circle cx="'+X(pts.length-1).toFixed(1)+'" cy="'+Y(vs[vs.length-1]).toFixed(1)+'" r="6" fill="'+col+'"/>';
+  var labels='<text x="'+PL+'" y="'+(H-8)+'" fill="#5f7183" font-size="16">'+fmtTime(pts[0].t)+'</text>'+
+             '<text x="'+(W-PR)+'" y="'+(H-8)+'" fill="#5f7183" font-size="16" text-anchor="end">'+fmtTime(pts[pts.length-1].t)+'</text>';
+  return '<svg class="chart" viewBox="0 0 '+W+' '+H+'">'+
+    '<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1">'+
+    '<stop offset="0%" stop-color="'+col+'" stop-opacity="0.30"/>'+
+    '<stop offset="100%" stop-color="'+col+'" stop-opacity="0"/></linearGradient></defs>'+
+    grid+'<path d="'+area+'" fill="url(#'+gid+')"/>'+
+    '<path d="'+line+'" fill="none" stroke="'+col+'" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>'+
+    dots+labels+'</svg>';
+}
+/* 价格大图 */
+function bigChart(id){
+  var chg=changeOf(id);
+  return renderLineChart(seriesOf(id), {color:colorOf(chg==null?0:chg)});
+}
+
+/* =========================================================
+   子弹利润排行
+   ========================================================= */
+function num(v){ if(v==null||v==='') return NaN; var n=Number(v); return isFinite(n)?n:NaN; }
+function firstNum(){
+  for(var i=0;i<arguments.length;i++){ var n=num(arguments[i]); if(isFinite(n)) return n; }
+  return NaN;
+}
+function baseId(id){ return String(id==null?'':id).split('-')[0]; }
+function emptyBlock(icon,msg){ return '<div class="empty"><div class="big">'+icon+'</div>'+msg+'</div>'; }
+
+/* 弹药字典：/df/object/ammo 返回全部弹药，用来精确判定"哪些物品是子弹"，比猜名字可靠 */
+function fetchAmmoList(){
+  return apiGet('/df/object/ammo',{days:1}).then(function(b){
+    var d=unwrap(b);
+    var arr=pickArr(d,['bullets','list']);
+    var ids={}, meta={};
+    arr.forEach(function(x){
+      var id=baseId(x.objectID!=null?x.objectID:x.id);
+      if(!id) return;
+      var ad=x.ammoDetail||{};
+      ids[id]=pickName(x);
+      meta[id]={
+        caliber:String(x.caliber||x.secondClass||'').replace(/^ammo/i,''),
+        level:(x.penetrationLevel!=null?x.penetrationLevel:(ad.penetrationLevel!=null?ad.penetrationLevel:null))
+      };
+    });
+    if(Object.keys(ids).length){
+      ammoInfo={fetchedAt:Date.now(), ids:ids, meta:meta};
+      save(K_AMMO,ammoInfo);
+    }
+    return ammoInfo;
+  });
+}
+function ensureAmmoList(){
+  if(ammoInfo.fetchedAt && Object.keys(ammoInfo.ids).length && (Date.now()-ammoInfo.fetchedAt)<24*3600*1000){
+    return Promise.resolve(ammoInfo);
+  }
+  return fetchAmmoList().catch(function(){ return ammoInfo; });   /* 拿不到字典也不阻塞，后面有多重兜底 */
+}
+/* 兜底判定：弹药字典（权威）+ ID 段 + 名称特征。注意两套后端的弹药 ID 段不同 */
+var AMMO_NAME_RE=/(\d+(\.\d+)?\s*[x*×]\s*\d+(\.\d+)?\s*mm|\.\d{2,3}\s*(blk|acp|ae|magnum)|(^|\s)\.?\d{2}\s*号|霰弹|gauge|箭矢|独头)/i;
+function isAmmo(x){
+  var id=baseId(pickId(x));
+  if(x.primaryClass==='ammo') return true;
+  if(ammoInfo.ids[id]) return true;
+  if(/^(1501|371|372|373)/.test(id)) return true;
+  return AMMO_NAME_RE.test(String(x.objectName||'')+' '+String(x.gameName||''));
+}
+
+function fetchProfitRank(params){
+  return apiGetAny(['/df/place/profit','/df/place/profitRank/v2'], params||{}).then(function(b){
+    var d=unwrap(b), out=[];
+    if(d && !Array.isArray(d) && Array.isArray(d.manufacturingPlaces)){
+      /* 新版后端：按制造场所分组，每个场所还分等级 */
+      d.manufacturingPlaces.forEach(function(pl){
+        var items=(pl&&pl.manufacturingItems)||[];
+        items.forEach(function(x){
+          if(!x||typeof x!=='object') return;
+          if(!x.__place) x.__place=pl.placeName||pl.placeType||'';
+          if(x.level==null) x.level=pl.level;
+          out.push(x);
+        });
+      });
+    }else if(d && !Array.isArray(d) && d.groups && typeof d.groups==='object'){
+      /* 旧版后端：groups{场所:[条目]} */
+      for(var g in d.groups){
+        if(!Object.prototype.hasOwnProperty.call(d.groups,g)) continue;
+        var arr=d.groups[g];
+        if(!Array.isArray(arr)) continue;
+        arr.forEach(function(x){ if(x&&typeof x==='object'){ if(!x.__place) x.__place=g; out.push(x); } });
+      }
+    }else if(Array.isArray(d)) out=d;
+    else if(d&&Array.isArray(d.items)) out=d.items;
+
+    /* 去重：同一物品可能出现在不同等级里，取时均利润更高的那条 */
+    var best={};
+    out.forEach(function(x){
+      var id=pickId(x); if(!id) return;
+      var hp=firstNum((x.today&&x.today.hourProfit), x.hourProfit);
+      if(!isFinite(hp)) hp=-1e18;
+      if(!best[id]||hp>best[id].__hp){ x.__hp=hp; best[id]=x; }
+    });
+    return {items:Object.keys(best).map(function(k){return best[k];}), currentTime:(d&&d.currentTime)||0, total:(d&&d.total)||out.length};
+  });
+}
+
+function normProfit(x){
+  var t=(x&&x.today)||null, y=(x&&x.yesterday)||null;
+  var meta=ammoInfo.meta[baseId(pickId(x))]||{};
+  return {
+    id: pickId(x),
+    name: pickName(x),
+    place: x.placeName||x.__place||x.placeType||'',
+    level: x.level,
+    caliber: meta.caliber||x.secondClass||'',
+    pLevel: (x.penetrationLevel!=null?x.penetrationLevel:meta.level),
+    sale: t?firstNum(t.bestSalePrice,t.salePrice):firstNum(x.salePrice),
+    cost: t?firstNum(t.minCost,t.costPrice):firstNum(x.costPrice),
+    profit: t?firstNum(t.profit):firstNum(x.totalProfit,x.profit),
+    hour: t?firstNum(t.hourProfit):firstNum(x.hourProfit),
+    yProfit: y?firstNum(y.profit):NaN,
+    period: firstNum(x.period),
+    perCount: firstNum(x.perCount),
+    fee: firstNum(x.fee),
+    required: Array.isArray(x.required)?x.required:null,
+    ts: toMs((t&&t.bestSaleTime)||x.timestamp)
+  };
+}
+function profitDelta(x){
+  if(isFinite(x.profit)&&isFinite(x.yProfit)) return x.profit-x.yProfit;
+  return NaN;
+}
+
+var profitLoadedType='';
+function loadProfit(force){
+  if(profitBusy) return Promise.resolve();
+  if(!cfg.key||!cfg.key.trim()){ profitErr=''; profitItems=[]; profitLoaded=false; renderProfit(); return Promise.resolve(); }
+  var wantType = profitSort===1 ? 'total' : 'hour';
+  if(!force && profitLoaded && profitLoadedType===wantType && (Date.now()-profitAt)<10*60*1000){ renderProfit(); return Promise.resolve(); }
+
+  profitBusy=true; profitErr=''; renderProfit();
+  var btn=$('#btnProfitRefresh'); if(btn) btn.classList.add('spin');
+
+  return ensureAmmoList().then(function(){
+    return fetchProfitRank({type:wantType});
+  }).then(function(r){
+    /* 不带 place 若返回空，退回最常见的弹药制造场所再试一次 */
+    if(!r.items.length){
+      return fetchProfitRank({type:wantType, place:'workbench'}).then(function(r2){ return r2.items.length?r2:r; });
+    }
+    return r;
+  }).then(function(r){
+    profitItems = r.items.filter(isAmmo).map(normProfit).filter(function(x){
+      return x.id && (isFinite(x.hour) || isFinite(x.profit));
+    });
+    profitAt=Date.now(); profitLoaded=true; profitLoadedType=wantType;
+    if(!profitItems.length) profitErr='';
+  }).catch(function(e){
+    profitErr=errText(e);
+  }).then(function(){
+    profitBusy=false;
+    if(btn) btn.classList.remove('spin');
+    renderProfit();
+  });
+}
+
+function renderCaliberChips(){
+  var set={};
+  profitItems.forEach(function(x){ var c=String(x.caliber||'').trim(); if(c) set[c]=1; });
+  var list=Object.keys(set).sort();
+  var box=$('#caliberChips');
+  if(list.length<2){ box.innerHTML=''; return; }
+  var html='<span class="chip'+(profitFilter===''?' on':'')+'" data-c="">全部</span>';
+  list.forEach(function(c){
+    html+='<span class="chip'+(profitFilter===c?' on':'')+'" data-c="'+esc(c)+'">'+esc(c)+'</span>';
+  });
+  box.innerHTML=html;
+  $$('#caliberChips .chip').forEach(function(el){
+    el.addEventListener('click',function(){ profitFilter=el.getAttribute('data-c'); renderProfit(); });
+  });
+}
+
+function renderProfit(){
+  var box=$('#profitList'), meta=$('#profitMeta');
+  if(!box) return;
+  if(!cfg.key||!cfg.key.trim()){
+    meta.textContent='未配置数据源';
+    $('#caliberChips').innerHTML='';
+    box.innerHTML=emptyBlock('🔑','先到「设置」填写 API Key');
+    return;
+  }
+  if(profitBusy && !profitItems.length){
+    meta.textContent='加载中…';
+    box.innerHTML='<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+    return;
+  }
+  if(profitErr){
+    meta.textContent='加载失败';
+    box.innerHTML=emptyBlock('⚠️',esc(profitErr)+'<div class="small" style="margin-top:8px">点右上角刷新重试</div>');
+    return;
+  }
+  if(!profitLoaded){
+    meta.textContent='尚未加载';
+    box.innerHTML=emptyBlock('🔫','切到本页会自动加载子弹利润排行');
+    return;
+  }
+  if(!profitItems.length){
+    meta.textContent='0 条';
+    $('#caliberChips').innerHTML='';
+    box.innerHTML=emptyBlock('🔫','接口没有返回子弹类的制造利润数据'+
+      '<div class="small" style="margin-top:8px">可能是该时段弹药制造数据还没生成，过一会儿再刷新试试</div>');
+    return;
+  }
+
+  renderCaliberChips();
+
+  var list=profitItems.filter(function(x){ return !profitFilter || x.caliber===profitFilter; });
+  list.sort(function(a,b){
+    if(profitSort===1) return (isFinite(b.profit)?b.profit:-1e18)-(isFinite(a.profit)?a.profit:-1e18);
+    if(profitSort===2) return (isFinite(profitDelta(b))?profitDelta(b):-1e18)-(isFinite(profitDelta(a))?profitDelta(a):-1e18);
+    return (isFinite(b.hour)?b.hour:-1e18)-(isFinite(a.hour)?a.hour:-1e18);
+  });
+
+  var newest=0;
+  list.forEach(function(x){ if(x.ts>newest) newest=x.ts; });
+  meta.innerHTML='共 '+list.length+' 种子弹'+(profitFilter?'（'+esc(profitFilter)+'）':'')+
+                 ' · '+esc(profitSort===1?'按总利润':(profitSort===2?'按日环比':'按时均利润'))+
+                 (newest?' · '+esc(ago(newest)):'');
+
+  box.innerHTML=list.map(function(x,i){
+    var d=profitDelta(x);
+    var has=inWatch(x.id)>=0;
+    var sub=[];
+    if(x.place) sub.push(esc(x.place)+(x.level!=null?' Lv.'+esc(x.level):''));
+    if(x.caliber) sub.push(esc(x.caliber));
+    if(x.pLevel!=null) sub.push(esc(x.pLevel)+'级穿甲');
+    var foot=[];
+    if(isFinite(x.profit)) foot.push('<span>总利润 <b class="mono">'+fmt(x.profit)+'</b></span>');
+    if(isFinite(d)) foot.push('<span>环比 <b class="mono" style="color:'+colorOf(d)+'">'+(d>0?'+':'')+fmt(d)+'</b></span>');
+    if(isFinite(x.sale)) foot.push('<span>售价 <b class="mono">'+fmt(x.sale)+'</b></span>');
+    if(isFinite(x.cost)) foot.push('<span>成本 <b class="mono">'+fmt(x.cost)+'</b></span>');
+    return '<div class="pcard" data-id="'+esc(x.id)+'" data-name="'+esc(x.name)+'">'+
+      '<div class="row" style="align-items:flex-start;gap:10px">'+
+        '<div class="prank'+(i<3?' top':'')+'">'+(i+1)+'</div>'+
+        '<div class="grow" style="min-width:0">'+
+          '<div class="pname ellip">'+esc(x.name)+'</div>'+
+          '<div class="small dim2 ellip">'+(sub.join(' · ')||'&nbsp;')+'</div>'+
+        '</div>'+
+        '<div style="text-align:right;flex:none">'+
+          '<div class="pbig mono">'+(isFinite(x.hour)?fmt(x.hour):'--')+'</div>'+
+          '<div class="small dim2">时均利润</div>'+
+        '</div>'+
+      '</div>'+
+      (foot.length?'<div class="pfoot">'+foot.join('')+
+        '<button class="pad'+(has?' on':'')+'" data-id="'+esc(x.id)+'" data-name="'+esc(x.name)+'">'+(has?'已加':'+ 自选')+'</button>'+
+      '</div>':'')+
+    '</div>';
+  }).join('');
+
+  $$('#profitList .pad').forEach(function(b){
+    b.addEventListener('click',function(ev){
+      if(ev&&ev.stopPropagation) ev.stopPropagation();   /* 别让点击冒泡到整张卡片 */
+      var id=b.getAttribute('data-id'), name=b.getAttribute('data-name');
+      if(inWatch(id)>=0){ toast('已在自选中'); return; }
+      watch.push({id:id,name:name,upper:'',lower:'',addedAt:Date.now()});
+      save(K_WATCH,watch);
+      b.textContent='已加'; b.classList.add('on');
+      toast('已加入自选：'+name);
+      loadHistoryFor([id],function(){ renderWatch(); });
+    });
+  });
+  $$('#profitList .pcard').forEach(function(el){
+    el.addEventListener('click',function(){
+      openProfitDetail(el.getAttribute('data-id'), el.getAttribute('data-name'));
+    });
+  });
+}
+
+/* =========================================================
+   利润历史曲线（详情页）
+   ========================================================= */
+function fetchProfitHistory(id){
+  return apiGetAny(['/df/place/profit/history','/df/place/profitHistory'],{objectID:id, objectId:id}).then(function(b){
+    var d=unwrap(b);
+    /* 新版后端：{days, history:[...]} 扁平结构（时间倒序） */
+    if(d && !Array.isArray(d) && Array.isArray(d.history)) return {flat:d.history, days:d.days};
+    /* 旧版后端：{items:[{objectID, history, stats, latestData, required, ...}]} */
+    return {items:pickArr(d,['items','list'])};
+  });
+}
+/* 从利润排行榜里取该物品的静态信息（场所/等级/周期/配方材料） */
+function profitItemById(id){
+  for(var i=0;i<profitItems.length;i++){ if(String(profitItems[i].id)===String(id)) return profitItems[i]; }
+  return null;
+}
+/* 历史记录里最新的一条（两套后端的时间顺序不一致，这里按时间戳取最大） */
+function profitLatest(item){
+  var h=(item&&item.history)||[], best=null, bt=-1;
+  for(var i=0;i<h.length;i++){
+    var x=h[i]||{}, t=toMs(x.timestamp);
+    if(t && t>bt){ bt=t; best=x; }
+  }
+  return best;
+}
+/* 接口没给 stats 时，自己从曲线算 */
+function profitStats(pts){
+  if(!pts||!pts.length) return {avg:NaN,max:NaN,min:NaN,count:0};
+  var vs=pts.map(function(x){return x.p;});
+  var sum=0; vs.forEach(function(v){ sum+=v; });
+  return {avg:sum/vs.length, max:Math.max.apply(null,vs), min:Math.min.apply(null,vs), count:vs.length};
+}
+/* 把 history 数组转成折线点；按当前指标取时均或总利润
+   注意字段名两套后端不同：新版用 totalProfit，旧版用 profit */
+function profitPoints(item){
+  var h=(item&&item.history)||[];
+  var pts=[];
+  for(var i=0;i<h.length;i++){
+    var x=h[i]||{};
+    var p = profitMetric==='total'
+      ? firstNum(x.totalProfit, x.profit, x.hourProfit)
+      : firstNum(x.hourProfit, x.profit, x.totalProfit);
+    var t = toMs(x.timestamp);
+    if(t && isFinite(p)) pts.push({t:t, p:p});
+  }
+  pts.sort(function(a,b){ return a.t-b.t; });
+  return pts;
+}
+function openProfitDetail(id,name){
+  if(!id) return;
+  curProfitId=id;
+  $('#pTitle').textContent=name||('物品 '+id);
+  $('#psheet').classList.add('on');
+  renderProfitDetail();
+  loadProfitHistory(id);
+}
+function closeProfitDetail(){ $('#psheet').classList.remove('on'); curProfitId=null; }
+function loadProfitHistory(id,force){
+  var c=profitHist[id];
+  if(!force && c && !c.err && c.item && (Date.now()-(c.fetchedAt||0))<10*60*1000){
+    renderProfitDetail(); return;
+  }
+  profitHist[id]={loading:true, fetchedAt:Date.now()};
+  renderProfitDetail();
+  fetchProfitHistory(id).then(function(r){
+    var it=null;
+    if(r && r.flat){
+      it = r.flat.length ? {objectID:id, history:r.flat, days:r.days} : null;
+    }else{
+      var items=(r&&r.items)||[];
+      for(var i=0;i<items.length;i++){
+        if(String(items[i].objectID)===String(id)){ it=items[i]; break; }
+      }
+      if(!it && items.length) it=items[0];
+    }
+    var known=profitItemById(id);
+    profitHist[id]= it ? {item:it, name:(known&&known.name)||it.objectName||it.gameName||'', fetchedAt:Date.now()}
+                       : {err:'接口没有返回该物品的利润历史数据', fetchedAt:Date.now()};
+  }).catch(function(e){
+    profitHist[id]={err:errText(e), fetchedAt:Date.now()};
+  }).then(function(){
+    if(curProfitId===id) renderProfitDetail();
+  });
+}
+function renderProfitDetail(){
+  var id=curProfitId; if(!id) return;
+  var body=$('#pBody'); if(!body) return;
+  var c=profitHist[id]||{};
+  if(c.loading){ body.innerHTML='<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>'; return; }
+  if(c.err){
+    body.innerHTML=emptyBlock('⚠️',esc(c.err)+'<div class="small" style="margin-top:8px">点右上角刷新重试</div>');
+    return;
+  }
+  var it=c.item||{};
+  var li=profitItemById(id)||{};
+  var ld=it.latestData||profitLatest(it)||{};
+  var st=it.stats||{};
+  var pts=profitPoints(it);
+  var isHour = profitMetric==='hour';
+  var label = isHour?'时均利润':'总利润';
+  var last = pts.length?pts[pts.length-1].p:firstNum(ld.hourProfit, ld.profit, ld.totalProfit);
+  var first = pts.length?pts[0].p:NaN;
+  var trend = (isFinite(last)&&isFinite(first)&&first!==0)?((last-first)/Math.abs(first)*100):NaN;
+  var name = c.name||it.objectName||li.name||it.gameName||('物品 '+id);
+  $('#pTitle').textContent = name;
+
+  var avg = isHour?firstNum(st.avgHourProfit,st.avgProfit):firstNum(st.avgProfit,st.avgHourProfit);
+  var maxp= isHour?firstNum(st.maxHourProfit,st.maxProfit):firstNum(st.maxProfit,st.maxHourProfit);
+  var minp= isHour?firstNum(st.minHourProfit,st.minProfit):firstNum(st.minProfit,st.minHourProfit);
+  /* 新版后端不给 stats，就从曲线自己算 */
+  if(!isFinite(avg)||!isFinite(maxp)||!isFinite(minp)){
+    var cs=profitStats(pts);
+    if(!isFinite(avg)) avg=cs.avg;
+    if(!isFinite(maxp)) maxp=cs.max;
+    if(!isFinite(minp)) minp=cs.min;
+  }
+  var sampleCount=(st.count!=null?st.count:pts.length);
+
+  var rows=pts.slice(-14).reverse().map(function(x){
+    return '<div class="hrow"><span class="dim">'+esc(fmtTime(x.t))+'</span><span class="mono">'+fmt(x.p)+'</span></div>';
+  }).join('');
+  var reqList=(it.required&&it.required.length)?it.required:(li.required||[]);
+  var mats=reqList.map(function(m){
+    return '<div class="hrow"><span class="dim">物品 '+esc(m.objectID)+'</span><span class="mono">× '+esc(m.count)+'</span></div>';
+  }).join('');
+
+  var sale=firstNum(ld.salePrice, li.sale);
+  var cost=firstNum(ld.costPrice, li.cost);
+  var info=[];
+  var place=li.place||it.placeName;
+  var lvl=(li.level!=null?li.level:it.level);
+  if(place) info.push('制造场所：'+esc(place)+(lvl!=null?' Lv.'+esc(lvl):''));
+  var period=firstNum(li.period, it.period);
+  if(isFinite(period)) info.push('周期 '+esc(period)+' 小时');
+  var pc=firstNum(li.perCount, it.perCount);
+  if(isFinite(pc)) info.push('每次 '+esc(pc)+' 个');
+  var fee=firstNum(ld.fee, li.fee);
+  if(isFinite(fee)) info.push('手续费 '+fmt(fee));
+
+  body.innerHTML=
+    '<div class="card">'+
+      '<div class="row">'+
+        '<div class="grow"><div class="small dim">当前'+label+'</div>'+
+        '<div class="mono" style="font-size:30px;font-weight:800;line-height:1.15;color:#ff8a3d">'+(isFinite(last)?fmt(last):'--')+'</div></div>'+
+        (isFinite(trend)?'<div class="chg" style="font-size:14px;padding:6px 10px;color:'+colorOf(trend)+'">'+
+          (trend>0?'+':'')+trend.toFixed(1)+'%<div class="small" style="font-weight:400;opacity:.8">区间变化</div></div>':'')+
+      '</div>'+
+      '<div class="row small dim2" style="gap:12px;margin-top:8px;flex-wrap:wrap">'+
+        (isFinite(sale)?'<span>售价 <b class="mono">'+fmt(sale)+'</b></span>':'')+
+        (isFinite(cost)?'<span>成本 <b class="mono">'+fmt(cost)+'</b></span>':'')+
+        (isFinite(firstNum(ld.profitRate))?'<span>利润率 <b class="mono">'+Number(ld.profitRate).toFixed(1)+'%</b></span>':'')+
+      '</div>'+
+      '<div class="statgrid">'+
+        '<div class="stat"><div class="k">平均'+label+'</div><div class="v">'+fmt(avg)+'</div></div>'+
+        '<div class="stat"><div class="k">最高'+label+'</div><div class="v">'+fmt(maxp)+'</div></div>'+
+        '<div class="stat"><div class="k">最低'+label+'</div><div class="v">'+fmt(minp)+'</div></div>'+
+        '<div class="stat"><div class="k">样本点</div><div class="v">'+esc(sampleCount)+'</div></div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="chartwrap">'+
+      '<div class="row" style="padding:0 10px 8px">'+
+        '<div class="grow small dim">'+label+'走势</div>'+
+        '<button class="hbtn" id="btnMetric">'+(isHour?'看总利润':'看时均利润')+'</button>'+
+      '</div>'+
+      renderLineChart(pts,{color:colorOf(trend==null?0:trend), empty:'暂无利润历史数据'})+
+    '</div>'+
+    (mats?'<div class="card" style="margin-top:12px"><div style="font-weight:700;margin-bottom:6px">制造材料</div>'+mats+'</div>':'')+
+    '<div class="card" style="margin-top:12px"><div style="font-weight:700;margin-bottom:6px">最近的记录点</div>'+
+      (rows||'<div class="small dim">暂无数据</div>')+'</div>'+
+    '<div class="card" style="margin-top:12px">'+
+      '<div class="btnrow" style="margin-top:0">'+
+        '<button class="btn pri" id="pdAdd">加入自选</button>'+
+        '<button class="btn" id="pdRefresh">刷新数据</button>'+
+      '</div>'+
+      (info.length?'<div class="hint">'+info.join(' · ')+'</div>':'')+
+    '</div>';
+
+  var bm=$('#btnMetric');
+  if(bm) bm.addEventListener('click',function(){ profitMetric = isHour?'total':'hour'; renderProfitDetail(); });
+  var ba=$('#pdAdd');
+  if(ba) ba.addEventListener('click',function(){
+    var wid=String(it.objectID||id);
+    if(inWatch(wid)>=0){ toast('已在自选中'); return; }
+    watch.push({id:wid, name:name, upper:'', lower:'', addedAt:Date.now()});
+    save(K_WATCH,watch); toast('已加入自选：'+name); renderWatch();
+  });
+  var br=$('#pdRefresh');
+  if(br) br.addEventListener('click',function(){ loadProfitHistory(id,true); });
+}
+
+/* =========================================================
+   渲染：行情
+   ========================================================= */
+function renderWatch(){
+  var box=$('#watchList');
+  if(!cfg.key||!cfg.key.trim()){
+    box.innerHTML='<div class="empty"><div class="big">🔑</div>还没有配置 API Key<br><span class="small">去「设置」填好 Key，再回来刷新</span></div>';
+    $('#watchMeta').textContent='未配置数据源';
+    return;
+  }
+  if(!watch.length){
+    box.innerHTML='<div class="empty"><div class="big">📈</div>自选列表是空的<br><span class="small">去「搜索」添加你想盯的物品</span></div>';
+    $('#watchMeta').textContent='0 个物品';
+    return;
+  }
+  var list=watch.slice();
+  if(sortMode===1) list.sort(function(a,b){ return (changeOf(b.id)||-1e9)-(changeOf(a.id)||-1e9); });
+  else if(sortMode===2) list.sort(function(a,b){ return (changeOf(a.id)||1e9)-(changeOf(b.id)||1e9); });
+  else if(sortMode===3) list.sort(function(a,b){ return (priceOf(b.id)||0)-(priceOf(a.id)||0); });
+
+  var newest=0;
+  list.forEach(function(it){ var h=histCache[it.id]; if(h&&h.priceAt>newest) newest=h.priceAt; });
+  $('#watchMeta').innerHTML=watch.length+' 个物品 · 更新于 '+esc(ago(newest));
+
+  box.innerHTML=list.map(function(it){
+    var p=priceOf(it.id), chg=changeOf(it.id), st=alertState(it);
+    var priceTxt=isFinite(p)?fmt(p):'--';
+    var chgTxt=(chg==null)?'--':((chg>0?'+':'')+chg.toFixed(2)+'%');
+    var badges='';
+    if(it.upper!=null&&it.upper!=='') badges+='<span class="badge'+(st==='upper'?' hit':'')+'">≥'+fmt(it.upper)+'</span> ';
+    if(it.lower!=null&&it.lower!=='') badges+='<span class="badge'+(st==='lower'?' hit':'')+'">≤'+fmt(it.lower)+'</span> ';
+    return '<div class="wcard" data-id="'+esc(it.id)+'">'+
+      '<div class="grow">'+
+        '<div class="wname ellip">'+esc(it.name)+'</div>'+
+        '<div class="row" style="gap:7px;margin-top:3px">'+
+          '<div class="wprice">'+priceTxt+'</div>'+
+          '<div class="chg '+classOf(chg==null?0:chg)+'">'+chgTxt+'</div>'+
+        '</div>'+
+        (badges?'<div style="margin-top:5px">'+badges+'</div>':'')+
+      '</div>'+
+      sparkline(it.id,156,68)+
+    '</div>';
+  }).join('');
+
+  $$('.wcard',box).forEach(function(el){
+    el.addEventListener('click',function(){ openDetail(el.getAttribute('data-id')); });
+  });
+}
+
+/* =========================================================
+   渲染：搜索
+   ========================================================= */
+function renderQuick(){
+  $('#quickChips').innerHTML=QUICK.map(function(n){
+    return '<span class="chip" data-k="'+esc(n)+'">'+esc(n)+'</span>';
+  }).join('');
+  $$('#quickChips .chip').forEach(function(el){
+    el.addEventListener('click',function(){ $('#q').value=el.getAttribute('data-k'); doSearch(); });
+  });
+}
+function inWatch(id){
+  for(var i=0;i<watch.length;i++) if(watch[i].id===id) return i;
+  return -1;
+}
+function renderSearchResults(list,err){
+  var box=$('#searchList');
+  if(err){ box.innerHTML='<div class="empty"><div class="big">⚠️</div>'+esc(err)+'</div>'; return; }
+  if(!list.length){ box.innerHTML='<div class="empty small">没有找到匹配的物品</div>'; return; }
+  box.innerHTML=list.map(function(x){
+    var has=inWatch(x.id)>=0;
+    return '<div class="ritem">'+
+      '<div class="grow ellip"><div style="font-weight:600">'+esc(x.name)+'</div>'+
+      '<div class="small dim2 mono">ID '+esc(x.id)+'</div></div>'+
+      '<button class="addbtn'+(has?' on':'')+'" data-id="'+esc(x.id)+'" data-name="'+esc(x.name)+'">'+(has?'已加':'+ 自选')+'</button>'+
+    '</div>';
+  }).join('');
+  $$('.addbtn',box).forEach(function(b){
+    b.addEventListener('click',function(){
+      var id=b.getAttribute('data-id'), name=b.getAttribute('data-name');
+      if(inWatch(id)>=0){ toast('已在自选中'); return; }
+      watch.push({id:id,name:name,upper:'',lower:'',addedAt:Date.now()});
+      save(K_WATCH,watch);
+      b.textContent='已加'; b.classList.add('on');
+      toast('已加入自选：'+name);
+      loadHistoryFor([id],function(){ renderWatch(); });
+    });
+  });
+}
+var searchSeq=0;
+function doSearch(){
+  var kw=$('#q').value.trim();
+  if(!kw){ toast('请输入物品名称'); return; }
+  if(!cfg.key||!cfg.key.trim()){ toast('请先到「设置」填 API Key'); switchTab('settings'); return; }
+  var box=$('#searchList');
+  box.innerHTML='<div class="skeleton"></div><div class="skeleton"></div>';
+  var seq=++searchSeq;
+  searchObject(kw).then(function(list){
+    if(seq!==searchSeq) return;
+    renderSearchResults(list);
+  }).catch(function(e){
+    if(seq!==searchSeq) return;
+    renderSearchResults([],errText(e));
+  });
+}
+
+/* =========================================================
+   详情
+   ========================================================= */
+var curId=null;
+function openDetail(id){
+  curId=id;
+  $('#sheet').classList.add('on');
+  var it=watch[inWatch(id)]||{id:id,name:'物品 '+id};
+  $('#dTitle').textContent=it.name;
+  renderDetail();
+  loadHistoryFor([id],function(){ renderDetail(); });
+}
+function closeDetail(){ $('#sheet').classList.remove('on'); curId=null; }
+
+function renderDetail(){
+  var id=curId; if(!id) return;
+  var idx=inWatch(id), it=idx>=0?watch[idx]:{id:id,name:'物品 '+id};
+  var p=priceOf(id), chg=changeOf(id);
+  var h=histCache[id]||{}, st=h.stats||{};
+  var pts=seriesOf(id);
+  var highest=st.maxPrice!=null?st.maxPrice:(pts.length?Math.max.apply(null,pts.map(function(x){return x.p;})):NaN);
+  var lowest =st.minPrice!=null?st.minPrice:(pts.length?Math.min.apply(null,pts.map(function(x){return x.p;})):NaN);
+  var avg    =st.avgPrice!=null?st.avgPrice:(pts.length?pts.reduce(function(a,b){return a+b.p;},0)/pts.length:NaN);
+
+  var rows=pts.slice(-14).reverse().map(function(x){
+    return '<div class="hrow"><span class="dim">'+esc(fmtTime(x.t))+'</span><span class="mono">'+fmt(x.p)+'</span></div>';
+  }).join('');
+
+  $('#dBody').innerHTML=
+    '<div class="card">'+
+      '<div class="row">'+
+        '<div class="grow"><div class="small dim">当前均价</div>'+
+        '<div class="mono" style="font-size:30px;font-weight:800;line-height:1.15">'+(isFinite(p)?fmt(p):'--')+'</div></div>'+
+        '<div class="chg '+classOf(chg==null?0:chg)+'" style="font-size:14px;padding:6px 10px">'+
+          (chg==null?'--':((chg>0?'+':'')+chg.toFixed(2)+'%'))+'<div class="small" style="font-weight:400;opacity:.8">近24小时</div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="small dim2" style="margin-top:6px">数据时间：'+esc(ago(h.priceAt||h.histAt))+'</div>'+
+      '<div class="statgrid">'+
+        '<div class="stat"><div class="k">7日最高</div><div class="v">'+fmt(highest)+'</div></div>'+
+        '<div class="stat"><div class="k">7日最低</div><div class="v">'+fmt(lowest)+'</div></div>'+
+        '<div class="stat"><div class="k">7日均价</div><div class="v">'+fmt(avg)+'</div></div>'+
+        '<div class="stat"><div class="k">样本点</div><div class="v">'+pts.length+'</div></div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="chartwrap">'+bigChart(id)+
+      '<div class="legend"><span>● 最高 '+fmt(highest)+'</span><span>● 最低 '+fmt(lowest)+'</span><span>近7天</span></div>'+
+    '</div>'+
+    (idx>=0?
+      '<div class="card" style="margin-top:12px">'+
+        '<div style="font-weight:700">价格提醒</div>'+
+        '<div class="small dim2" style="margin-top:3px">价格 ≥ 上限 或 ≤ 下限时提醒（需保持页面打开）</div>'+
+        '<div class="alertbox"><input id="aUp" type="number" inputmode="numeric" placeholder="上限价格" value="'+esc(it.upper==null?'':it.upper)+'">'+
+        '<input id="aLow" type="number" inputmode="numeric" placeholder="下限价格" value="'+esc(it.lower==null?'':it.lower)+'"></div>'+
+        '<div class="btnrow"><button class="btn pri" id="aSave">保存阈值</button>'+
+        '<button class="btn" id="aClear">清除阈值</button>'+
+        '<button class="btn danger" id="aDel">移出自选</button></div>'+
+      '</div>'
+      :
+      '<div class="card" style="margin-top:12px"><button class="btn pri" id="aAdd" style="width:100%">加入自选</button></div>'
+    )+
+    '<div class="card" style="margin-top:12px">'+
+      '<div style="font-weight:700;margin-bottom:6px">最近的记录点</div>'+
+      (rows||'<div class="small dim">暂无数据</div>')+
+    '</div>'+
+    '<div class="card" style="margin-top:12px">'+
+      '<div class="btnrow" style="margin-top:0"><button class="btn" id="dRaw">查看原始数据</button></div>'+
+      '<div id="rawBox"></div>'+
+    '</div>';
+
+  var up=$('#aUp'), lo=$('#aLow');
+  if($('#aSave')) $('#aSave').addEventListener('click',function(){
+    var i=inWatch(id); if(i<0) return;
+    watch[i].upper=up.value===''?'':Number(up.value);
+    watch[i].lower=lo.value===''?'':Number(lo.value);
+    save(K_WATCH,watch); toast('阈值已保存'); renderWatch(); renderDetail();
+  });
+  if($('#aClear')) $('#aClear').addEventListener('click',function(){
+    var i=inWatch(id); if(i<0) return;
+    watch[i].upper=''; watch[i].lower='';
+    save(K_WATCH,watch); toast('阈值已清除'); renderWatch(); renderDetail();
+  });
+  if($('#aDel')) $('#aDel').addEventListener('click',function(){
+    var i=inWatch(id); if(i<0) return;
+    watch.splice(i,1); save(K_WATCH,watch);
+    toast('已移出自选'); closeDetail(); renderWatch();
+  });
+  if($('#aAdd')) $('#aAdd').addEventListener('click',function(){
+    watch.push({id:id,name:it.name,upper:'',lower:'',addedAt:Date.now()});
+    save(K_WATCH,watch); toast('已加入自选'); renderDetail(); renderWatch();
+  });
+  if($('#dRaw')) $('#dRaw').addEventListener('click',function(){
+    $('#rawBox').innerHTML='<pre class="raw">'+esc(JSON.stringify(h,null,2))+'</pre>';
+  });
+}
+
+/* =========================================================
+   拉取
+   ========================================================= */
+function prunePoints(pts){
+  if(!pts||!pts.length) return pts||[];
+  var cut=Date.now()-8*24*3600*1000;
+  var out=pts.filter(function(x){ return x.t>=cut; });
+  if(!out.length) out=pts;
+  if(out.length>600) out=out.slice(out.length-600);
+  return out;
+}
+function loadHistoryFor(ids, done){
+  var queue=ids.slice();
+  var max=3, active=0, fired=false;
+  function finish(){ if(!fired&&done){ fired=true; done(); } }
+  function next(){
+    if(!queue.length){ if(active===0) finish(); return; }
+    while(active<max&&queue.length){
+      (function(id){
+        active++;
+        fetchHistory(id).then(function(r){
+          var prev=histCache[id]||{};
+          var pts=r.points.length?r.points:(prev.points||[]);
+          var lastPt=r.points.length?r.points[r.points.length-1]:null;
+          histCache[id]={
+            points:prunePoints(pts),
+            stats:r.stats||prev.stats||null,
+            histAt:Date.now(),
+            /* 现价以 /price/latest 为准，历史接口只在没有现价时兜底，避免把新价覆盖成曲线末点 */
+            price:(prev.price!=null&&isFinite(prev.price))?prev.price:(lastPt?lastPt.p:undefined),
+            priceAt:prev.priceAt||(lastPt?lastPt.t:Date.now())
+          };
+        }).catch(function(){ /* 单个失败不影响整体 */ })
+        .then(function(){ active--; next(); });
+      })(queue.shift());
+    }
+  }
+  next();
+}
+
+function refreshAll(silent){
+  if(busy) return Promise.resolve();
+  if(!cfg.key||!cfg.key.trim()){
+    if(!silent){ toast('请先到「设置」填 API Key'); switchTab('settings'); }
+    return Promise.resolve();
+  }
+  if(!watch.length){
+    if(!silent) toast('自选列表为空，先去搜索添加物品');
+    return Promise.resolve();
+  }
+  busy=true;
+  var btn=$('#btnRefresh'); btn.classList.add('spin');
+  var ids=watch.map(function(w){return w.id;});
+  return fetchLatest(ids).then(function(map){
+    var got=0;
+    for(var id in map){
+      var h=histCache[id]||{points:[],stats:null};
+      h.price=map[id].price;
+      h.priceAt=map[id].ts||Date.now();
+      histCache[id]=h; got++;
+    }
+    /* 历史：缺失或超过 30 分钟才重新拉 */
+    var need=[];
+    ids.forEach(function(id){
+      var h=histCache[id];
+      if(!h||!h.points||!h.points.length||(Date.now()-(h.histAt||0))>30*60*1000) need.push(id);
+    });
+    save(K_HIST,histCache);
+    renderWatch();
+    setNet(true);
+    if(!silent){ toast(got?'已更新 '+got+' 个物品':'接口没有返回价格数据'); }
+    if(need.length){
+      loadHistoryFor(need,function(){
+        save(K_HIST,histCache);
+        renderWatch();
+        if(curId) renderDetail();
+        checkAlerts();
+      });
+    }else{
+      checkAlerts();
+    }
+  }).catch(function(e){
+    setNet(false);
+    if(!silent) toast(errText(e),3200);
+  }).then(function(){
+    busy=false; btn.classList.remove('spin');
+  });
+}
+
+/* =========================================================
+   提醒
+   ========================================================= */
+function setNet(ok){
+  var d=$('#netdot');
+  d.style.color = ok ? 'var(--down)' : 'var(--up)';
+  d.title = ok ? '接口正常' : '接口异常';
+}
+function checkAlerts(){
+  if(!cfg.notify) return;
+  watch.forEach(function(it){
+    var st=alertState(it); if(!st) return;
+    var last=alertLog[it.id]||0;
+    if(Date.now()-last < 10*60*1000) return;
+    alertLog[it.id]=Date.now();
+    var p=priceOf(it.id);
+    var title='物价雷达 · '+it.name;
+    var body=(st==='upper'?'高于上限 ':'低于下限 ')+fmt(p)+
+             '（'+(st==='upper'?('≥'+fmt(it.upper)):('≤'+fmt(it.lower)))+'）';
+    if(window.Notification && Notification.permission==='granted'){
+      try{ new Notification(title,{body:body,tag:'dfr-'+it.id}); }catch(e){}
+    }
+    toast(title+'\n'+body,3600);
+    if(navigator.vibrate) try{ navigator.vibrate([180,90,180]); }catch(e){}
+  });
+}
+
+/* =========================================================
+   设置界面
+   ========================================================= */
+function fillSettings(){
+  $('#cfgKey').value=cfg.key||'';
+  var known=KNOWN_BASES;
+  var b=cfg.base||DEFAULT_CFG.base;
+  if(known.indexOf(b)>=0){
+    $('#cfgBase').value=b;
+    $('#cfgBaseCustom').value='';
+    $('#cfgBaseCustom').style.display='none';
+  }else{
+    $('#cfgBase').value='__custom__';
+    $('#cfgBaseCustom').value=b;
+    $('#cfgBaseCustom').style.display='block';
+  }
+  $('#cfgProxy').value=cfg.proxy||'';
+  $('#cfgInterval').value=String(cfg.interval||5);
+  setTgl('#tglProxy',!!cfg.useProxy);
+  setTgl('#tglAuto',cfg.auto!==false);
+  setTgl('#tglNotify',!!cfg.notify);
+  setTgl('#tglColor',cfg.colorUpRed!==false);
+  $('#storeInfo').textContent='自选 '+watch.length+' 项 · 历史缓存 '+Object.keys(histCache).length+' 项（约 '+
+    Math.round(JSON.stringify(histCache).length/1024)+' KB）';
+}
+function setTgl(sel,on){ $(sel).classList.toggle('on',!!on); }
+function readSettings(){
+  cfg.key=$('#cfgKey').value.trim();
+  var sel=$('#cfgBase').value;
+  if(sel==='__custom__'){
+    var cu=$('#cfgBaseCustom').value.trim();
+    cfg.base = cu || DEFAULT_CFG.base;
+  }else{
+    cfg.base=sel;
+  }
+  cfg.proxy=$('#cfgProxy').value.trim();
+  cfg.useProxy=$('#tglProxy').classList.contains('on');
+  cfg.auto=$('#tglAuto').classList.contains('on');
+  cfg.interval=Number($('#cfgInterval').value)||5;
+  cfg.notify=$('#tglNotify').classList.contains('on');
+  cfg.colorUpRed=$('#tglColor').classList.contains('on');
+  save(K_CFG,cfg);
+  setupTimer();
+  renderWatch();
+  /* 数据源可能变了，让利润排行下次进页面重新拉 */
+  profitLoaded=false; profitAt=0; profitLoadedType=''; profitErr='';
+}
+
+function testConn(){
+  var out=$('#testOut');
+  out.innerHTML='<div class="status">正在测试…</div>';
+  var lines=[];
+  function one(label,useProxy){
+    var oldUse=cfg.useProxy, oldProxy=cfg.proxy;
+    cfg.useProxy=useProxy;
+    var t0=Date.now();
+    return apiGet('/df/object/search',{name:'金条'}).then(function(b){
+      var d=unwrap(b);
+      var n=(d&&(d.keywords||d.list||d.items))? (d.keywords||d.list||d.items).length : (Array.isArray(d)?d.length:0);
+      lines.push('✅ '+label+'：正常（'+n+' 条结果，'+(Date.now()-t0)+' ms）');
+    }).catch(function(e){
+      lines.push('❌ '+label+'：'+errText(e));
+    }).then(function(){ cfg.useProxy=oldUse; cfg.proxy=oldProxy; });
+  }
+  var p=Promise.resolve();
+  p=p.then(function(){ return one('直连 '+cfg.base,false); });
+  if(cfg.proxy && cfg.proxy.trim()) p=p.then(function(){ return one('代理 '+cfg.proxy,true); });
+  else lines.push('ℹ️ 未填写代理地址，跳过代理测试');
+  p.then(function(){
+    var ok=lines.join('\n').indexOf('✅')>=0;
+    out.innerHTML='<div class="status '+(ok?'ok':'bad')+'">'+esc(lines.join('\n'))+'</div>'+
+      (ok?'':'<div class="hint">若提示 CORS/网络失败：说明浏览器不允许直接访问该接口。<br>请按 README 部署 worker.js，把地址填到上面的「代理」并打开开关。</div>');
+  });
+}
+
+/* =========================================================
+   Tab / 事件
+   ========================================================= */
+function switchTab(name){
+  $$('nav button').forEach(function(b){ b.classList.toggle('on',b.getAttribute('data-tab')===name); });
+  $$('.view').forEach(function(v){ v.classList.toggle('on',v.id==='view-'+name); });
+  if(name==='settings') fillSettings();
+  if(name==='watch') renderWatch();
+  if(name==='profit'){ renderProfit(); loadProfit(false); }
+}
+function setupTimer(){
+  if(timer) clearInterval(timer);
+  if(cfg.auto!==false && cfg.interval>0){
+    timer=setInterval(function(){
+      if(document.visibilityState==='visible') refreshAll(true);
+    },cfg.interval*60*1000);
+  }
+}
+
+function bind(){
+  $$('nav button').forEach(function(b){
+    b.addEventListener('click',function(){ switchTab(b.getAttribute('data-tab')); });
+  });
+
+  $('#btnRefresh').addEventListener('click',function(){ refreshAll(false); });
+
+  $('#btnSort').addEventListener('click',function(){
+    sortMode=(sortMode+1)%4;
+    this.textContent='排序：'+SORT_LABEL[sortMode];
+    renderWatch();
+  });
+
+  var qt=null;
+  $('#q').addEventListener('input',function(){
+    clearTimeout(qt);
+    var v=this.value.trim();
+    if(!v) return;
+    qt=setTimeout(doSearch,420);
+  });
+  $('#q').addEventListener('keydown',function(e){ if(e.key==='Enter'){ this.blur(); doSearch(); } });
+
+  $('#btnSave').addEventListener('click',function(){ readSettings(); toast('设置已保存'); fillSettings(); });
+  $('#btnTest').addEventListener('click',function(){ readSettings(); testConn(); });
+
+  /* 子弹利润排行 */
+  $('#btnProfitRefresh').addEventListener('click',function(){ loadProfit(true); });
+  $('#btnProfitSort').addEventListener('click',function(){
+    profitSort=(profitSort+1)%3;
+    this.textContent=PROFIT_SORT[profitSort];
+    var wantType = profitSort===1 ? 'total' : 'hour';
+    renderProfit();
+    /* 排序类型会作为接口参数，变了就重新拉一次 */
+    loadProfit(profitLoadedType!==wantType && profitLoadedType!=='');
+  });
+  $$('#tglNotify').forEach(function(el){
+    el.addEventListener('click',function(){
+      var on=!el.classList.contains('on');
+      setTgl('#tglNotify',on);
+      if(on && window.Notification && Notification.permission==='default'){
+        Notification.requestPermission();
+      }
+      if(on && window.Notification && Notification.permission==='denied'){
+        toast('浏览器已拒绝通知权限，将只显示页内提醒',2600);
+      }
+    });
+  });
+  ['#tglProxy','#tglAuto','#tglColor'].forEach(function(s){
+    $(s).addEventListener('click',function(){ this.classList.toggle('on'); });
+  });
+  $('#cfgBase').addEventListener('change',function(){
+    $('#cfgBaseCustom').style.display = (this.value==='__custom__') ? 'block' : 'none';
+  });
+
+  $('#btnBack').addEventListener('click',closeDetail);
+  $('#btnPBack').addEventListener('click',closeProfitDetail);
+  $('#btnPRefresh').addEventListener('click',function(){ if(curProfitId) loadProfitHistory(curProfitId,true); });
+  $('#btnDRefresh').addEventListener('click',function(){
+    if(!curId) return;
+    loadHistoryFor([curId],function(){ save(K_HIST,histCache); renderDetail(); });
+    fetchLatest([curId]).then(function(m){
+      var h=histCache[curId]; if(h&&m[curId]){ h.price=m[curId].price; h.ts=m[curId].ts; save(K_HIST,histCache); renderDetail(); }
+    }).catch(function(){});
+  });
+
+  $('#btnExport').addEventListener('click',function(){
+    var txt=JSON.stringify({cfg:{base:cfg.base},watch:watch},null,1);
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(function(){ toast('已复制到剪贴板（'+watch.length+' 项）',2400); },
+        function(){ window.prompt('复制下面的内容：',txt); });
+    }else{ window.prompt('复制下面的内容：',txt); }
+  });
+  $('#btnImport').addEventListener('click',function(){
+    var txt=window.prompt('粘贴之前导出的 JSON：','');
+    if(!txt) return;
+    try{
+      var o=JSON.parse(txt);
+      if(o&&Array.isArray(o.watch)){
+        watch=o.watch.filter(function(x){return x&&x.id;});
+        save(K_WATCH,watch); renderWatch(); fillSettings(); toast('已导入 '+watch.length+' 项');
+      }else{ toast('格式不对：缺少 watch 数组'); }
+    }catch(e){ toast('JSON 解析失败'); }
+  });
+  $('#btnClear').addEventListener('click',function(){
+    if(!window.confirm('确定清空全部自选？（历史缓存也会清除）')) return;
+    watch=[]; histCache={}; save(K_WATCH,watch); save(K_HIST,histCache);
+    renderWatch(); fillSettings(); toast('已清空');
+  });
+
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible' && cfg.auto!==false) refreshAll(true);
+  });
+}
+
+/* =========================================================
+   启动
+   ========================================================= */
+bind();
+renderQuick();
+fillSettings();
+renderWatch();
+setupTimer();
+if(cfg.key && watch.length) refreshAll(true);
+
+})();
+</script>
+</body>
+</html>
